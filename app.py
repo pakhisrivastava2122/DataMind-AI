@@ -45,6 +45,26 @@ def explain_results(task, metrics, df_info, expertise):
     """
     return get_ai_response(prompt)
 
+def detect_task_type(df):
+    cols = df.columns.tolist()
+
+    prompt = f"""
+    Analyze these dataset columns:
+    {cols}
+
+    Decide:
+    - classification
+    - regression
+    - clustering
+
+    Return ONLY:
+
+    TASK: <task>
+    TARGET: <target column>
+    """
+
+    return get_ai_response(prompt)
+
 def run_model(df, task, target_col):
     results = {}
     
