@@ -21,7 +21,7 @@ st.set_page_config(
 # ---- GEMINI SETUP ----
 # genai.configure(api_key="AIzaSyBepf_uGWiU1P6GnPGROytTz5JnGn1njxg")
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model_ai = genai.GenerativeModel("gemini-1.5-flash")
+model_ai = genai.GenerativeModel("gemini-1.5-pro")
 
 # ---- HELPER FUNCTIONS ----
 def get_ai_response(prompt):
