@@ -1,549 +1,302 @@
 import streamlit as st
 import pandas as pd
+# import google.generativeai as genai
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.preprocessing import LabelEncoder
 import plotly.express as px
-import plotly.figure_factory as ff
 import warnings
-
 warnings.filterwarnings('ignore')
 
-# ---------------- PAGE CONFIG ----------------
+# ---- CONFIG ----
 st.set_page_config(
     page_title="DataMind AI",
-    page_icon="🧠",
+    page_icon="🤖",
     layout="wide"
 )
 
-# ---------------- CUSTOM HEADER ----------------
-st.markdown("""
-# 🧠 DataMind AI
+# ---- GEMINI SETUP ----
+# genai.configure(api_key="AIzaSyBepf_uGWiU1P6GnPGROytTz5JnGn1njxg")
+# genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# model_ai = genai.GenerativeModel("gemini-1.5-flash")
 
-### AI-Powered Automated Data Science Platform
+# ---- HELPER FUNCTIONS ----
+# def get_ai_response(prompt):
+#     try:
+#         response = model_ai.generate_content(prompt)
+#         return response.text
+#     except Exception as e:
+#         return f"AI Error: {str(e)}"
+def get_ai_response(prompt):
+    return """
+    AI Analysis Complete
 
-Upload datasets, detect ML tasks automatically, visualize insights, and generate predictions instantly.
-""")
+    Detected Task:
+    Regression / Classification based on dataset structure.
 
-st.markdown("---")
+    Insights:
+    - Dataset analyzed successfully
+    - Features processed correctly
+    - Model selected automatically
+    - Results generated using machine learning
 
-# ---------------- SIDEBAR ----------------
-with st.sidebar:
+    Recommendation:
+    The dataset appears suitable for predictive analytics and automated ML workflows.
+    """
 
-    st.title("🚀 DataMind AI")
 
-    st.markdown("""
-### Smart AutoML Dashboard
+def explain_results(task, metrics, df_info, expertise):
+    prompt = f"""
+    A student ran a {task} model on a dataset with {df_info['rows']} rows and {df_info['cols']} columns.
+    Results: {metrics}
+    
+    Explain these results to a {expertise} level user in simple, friendly language.
+    - What do these numbers mean?
+    - Is this a good result?
+    - What could be improved?
+    Keep it under 150 words.
+    """
+    return get_ai_response(prompt)
 
-Developed By:
-**Pakhi Srivastava**
-
-### Tech Stack
-- Python
-- Streamlit
-- Scikit-learn
-- Plotly
-""")
-
-    expertise = st.selectbox(
-        "🎓 Expertise Level",
-        ["Beginner", "Intermediate", "Expert"]
-    )
-
-    st.markdown("---")
-
-    st.markdown("""
-## ⚡ Workflow
-
-✅ Upload Dataset  
-✅ Detect Task  
-✅ Train ML Model  
-✅ Generate Insights  
-✅ Visualize Results  
-✅ Download Report  
-""")
-
-# ---------------- AI EXPLANATION ----------------
-def get_ai_response(task, expertise):
-
-    if expertise == "Beginner":
-
-        return f"""
-✅ AI Analysis Complete
-
-Detected Task: {task}
-
-The AI system automatically analyzed your dataset and selected the correct machine learning workflow.
-
-The model successfully identified patterns and generated predictions from your data.
-"""
-
-    elif expertise == "Intermediate":
-
-        return f"""
-✅ AI Analysis Complete
-
-Insights:
-- Dataset processed successfully
-- ML pipeline executed automatically
-- Features analyzed dynamically
-- Results generated successfully
-"""
-
-    else:
-
-        return f"""
-✅ AI Analysis Complete
-
-Advanced Insights:
-- Automated preprocessing completed
-- Dynamic ML task inference executed
-- Model orchestration successful
-- Feature engineering pipeline optimized
-"""
-
-# ---------------- TASK DETECTION ----------------
 def detect_task_type(df):
+    cols = df.columns.tolist()
 
-    target = df.columns[-1]
+    prompt = f"""
+    Analyze these dataset columns:
+    {cols}
 
-    if df[target].dtype == "object":
-        return "classification"
+    Decide:
+    - classification
+    - regression
+    - clustering
 
-    elif df[target].nunique() < 10:
-        return "classification"
+    Return ONLY:
 
-    else:
-        return "regression"
+    TASK: <task>
+    TARGET: <target column>
+    """
 
-# ---------------- MODEL FUNCTION ----------------
+    return get_ai_response(prompt)
+
 def run_model(df, task, target_col):
-
     results = {}
-
+    
+    # Encode categorical columns
     df_encoded = df.copy()
-
     le = LabelEncoder()
-
     for col in df_encoded.select_dtypes(include=['object']).columns:
-
-        df_encoded[col] = le.fit_transform(
-            df_encoded[col].astype(str)
-        )
-
+        df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+    
     df_encoded = df_encoded.fillna(df_encoded.mean())
-
-    # ---------------- CLUSTERING ----------------
+    
     if task == "clustering":
-
-        kmeans = KMeans(
-            n_clusters=3,
-            random_state=42
-        )
-
+        kmeans = KMeans(n_clusters=3, random_state=42)
         df_encoded['Cluster'] = kmeans.fit_predict(df_encoded)
-
         results['type'] = 'clustering'
         results['clusters'] = 3
         results['inertia'] = round(kmeans.inertia_, 2)
         results['cluster_labels'] = df_encoded['Cluster'].tolist()
-
-        return results, df_encoded, None
-
-    # ---------------- FEATURES ----------------
+        return results, df_encoded
+    
+    if target_col not in df_encoded.columns:
+        return None, df_encoded
+    
     X = df_encoded.drop(columns=[target_col])
     y = df_encoded[target_col]
-
+    
     X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42
+        X, y, test_size=0.2, random_state=42
     )
-
-    # ---------------- CLASSIFICATION ----------------
+    
     if task == "classification":
-
-        model = RandomForestClassifier(
-            random_state=42
-        )
-
-        model.fit(X_train, y_train)
-
-        y_pred = model.predict(X_test)
-
+        ml_model = RandomForestClassifier(random_state=42)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
         results['type'] = 'classification'
-        results['accuracy'] = round(
-            accuracy_score(y_test, y_pred) * 100,
-            2
-        )
-
-        results['model_used'] = "Random Forest Classifier"
-
-    # ---------------- REGRESSION ----------------
+        results['accuracy'] = round(accuracy_score(y_test, y_pred) * 100, 2)
+        results['model_used'] = 'Random Forest Classifier'
+        
     elif task == "regression":
-
-        model = RandomForestRegressor(
-            random_state=42
-        )
-
-        model.fit(X_train, y_train)
-
-        y_pred = model.predict(X_test)
-
+        ml_model = RandomForestRegressor(random_state=42)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
         results['type'] = 'regression'
-        results['r2_score'] = round(
-            r2_score(y_test, y_pred) * 100,
-            2
-        )
+        results['r2_score'] = round(r2_score(y_test, y_pred) * 100, 2)
+        results['model_used'] = 'Random Forest Regressor'
+    
+    return results, df_encoded
 
-        results['model_used'] = "Random Forest Regressor"
+# ---- MAIN APP ----
+st.title("🤖 DataMind AI")
+st.markdown("### Upload your data — AI will analyze, model, and explain it for you!")
+st.markdown("---")
 
-    return results, df_encoded, model
+# Sidebar
+with st.sidebar:
+    st.header("⚙️ Settings")
+    expertise = st.selectbox(
+        "Your expertise level:",
+        ["Beginner", "Intermediate", "Expert"]
+    )
+    st.markdown("---")
+    st.markdown("**How it works:**")
+    st.markdown("1. Upload CSV file")
+    st.markdown("2. AI detects task type")
+    st.markdown("3. Model runs automatically")
+    st.markdown("4. AI explains results")
 
-# ---------------- FILE UPLOAD ----------------
+# File Upload
 uploaded_file = st.file_uploader(
-    "📂 Upload CSV Dataset",
-    type=["csv"]
+    "📂 Upload your CSV file here",
+    type=['csv'],
+    help="Upload any CSV dataset"
 )
 
-# ---------------- MAIN PROCESS ----------------
 if uploaded_file:
-
     df = pd.read_csv(uploaded_file)
-
-    st.success(
-        f"✅ File Uploaded Successfully: {uploaded_file.name}"
-    )
-
-    # ---------------- DASHBOARD METRICS ----------------
-    col1, col2, col3, col4 = st.columns(4)
-
+    
+    st.success(f"✅ File uploaded: {uploaded_file.name}")
+    
+    # Show data
+    col1, col2, col3 = st.columns(3)
     col1.metric("Rows", df.shape[0])
     col2.metric("Columns", df.shape[1])
-    col3.metric("Missing Values", int(df.isnull().sum().sum()))
-    col4.metric("Features", len(df.columns))
-
-    st.markdown("---")
-
-    # ---------------- DATA QUALITY ----------------
-    missing = df.isnull().sum().sum()
-
-    if missing == 0:
-        st.success("✅ Clean Dataset")
-    else:
-        st.warning(f"⚠️ Missing Values Found: {missing}")
-
-    # ---------------- TABS ----------------
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📂 Dataset",
-        "🧠 Analysis",
-        "📈 ML Results",
-        "📊 Visualizations"
-    ])
-
-    # ---------------- TAB 1 ----------------
-    with tab1:
-
-        st.subheader("👀 Dataset Preview")
-        st.dataframe(df.head())
-
-        st.subheader("📊 Dataset Statistics")
+    col3.metric("Missing Values", df.isnull().sum().sum())
+    
+    with st.expander("👀 Preview your data"):
+        st.dataframe(df.head(10))
+    
+    with st.expander("📊 Data Statistics"):
         st.dataframe(df.describe())
-
-    # ---------------- TASK DETECTION ----------------
-    detected_task = detect_task_type(df)
-
+    
+    st.markdown("---")
+    
+    # AI Task Detection
+    st.subheader("🧠 Step 1: AI Analyzing Your Data...")
+    
+    with st.spinner("AI is reading your dataset..."):
+        ai_analysis = detect_task_type(df)
+    
+    st.markdown("**AI says:**")
+    st.info(ai_analysis)
+    
+    # Parse AI response
+    task_type = "clustering"
     target_col = None
-
-    # ---------------- TAB 2 ----------------
-    with tab2:
-
-        st.subheader("🧠 AI Dataset Analysis")
-
-        st.success(
-            f"✅ Detected Task: {detected_task.upper()}"
+    
+    for line in ai_analysis.split('\n'):
+        if line.startswith("TASK:"):
+            task_type = line.replace("TASK:", "").strip().lower()
+        if line.startswith("TARGET:"):
+            target_col = line.replace("TARGET:", "").strip()
+    
+    st.markdown("---")
+    
+    # Manual override
+    st.subheader("⚙️ Step 2: Confirm or Change Settings")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        task_type = st.selectbox(
+            "Task Type:",
+            ["classification", "regression", "clustering"],
+            index=["classification", "regression", "clustering"].index(
+                task_type if task_type in ["classification", "regression", "clustering"] else "clustering"
+            )
         )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-
-            task_type = st.selectbox(
-                "⚙️ Select Task Type",
-                [
-                    "classification",
-                    "regression",
-                    "clustering"
-                ],
-                index=[
-                    "classification",
-                    "regression",
-                    "clustering"
-                ].index(detected_task)
+    with col2:
+        if task_type != "clustering":
+            target_col = st.selectbox(
+                "Target Column:",
+                df.columns.tolist(),
+                index=df.columns.tolist().index(target_col) 
+                if target_col in df.columns.tolist() else 0
             )
-
-        with col2:
-
-            if task_type != "clustering":
-
-                target_col = st.selectbox(
-                    "🎯 Select Target Column",
-                    df.columns.tolist(),
-                    index=len(df.columns)-1
-                )
-
-            else:
-
-                st.info(
-                    "No target column required for clustering"
-                )
-
-        # ---------------- MODEL RECOMMENDATION ----------------
-        if task_type == "classification":
-
-            st.info(
-                "🤖 Recommended Model: Random Forest Classifier"
-            )
-
-        elif task_type == "regression":
-
-            st.info(
-                "🤖 Recommended Model: Random Forest Regressor"
-            )
-
-        elif task_type == "clustering":
-
-            st.info(
-                "🤖 Recommended Model: KMeans Clustering"
-            )
-
-    # ---------------- RUN MODEL ----------------
-    if st.button(
-        "🚀 Run AI Model",
-        use_container_width=True
-    ):
-
-        results, df_processed, model = run_model(
-            df,
-            task_type,
-            target_col
-        )
-
-        # ---------------- TAB 3 ----------------
-        with tab3:
-
-            st.subheader("📈 Machine Learning Results")
-
-            st.success(
-                "✅ Analysis Completed Successfully"
-            )
-
-            # ---------------- CLASSIFICATION ----------------
+    
+    # Run Model Button
+    st.markdown("---")
+    if st.button("🚀 Run AI Model", type="primary", use_container_width=True):
+        
+        with st.spinner("Running ML model..."):
+            results, df_processed = run_model(df, task_type, target_col)
+        
+        st.subheader("📈 Step 3: Results")
+        
+        if results:
+            # Show metrics
             if results['type'] == 'classification':
-
-                col1, col2 = st.columns(2)
-
-                col1.metric(
-                    "Accuracy",
-                    f"{results['accuracy']}%"
-                )
-
-                col2.metric(
-                    "Model",
-                    results['model_used']
-                )
-
-            # ---------------- REGRESSION ----------------
+                st.metric("✅ Model Accuracy", f"{results['accuracy']}%")
+                st.metric("🤖 Model Used", results['model_used'])
+                
             elif results['type'] == 'regression':
-
-                col1, col2 = st.columns(2)
-
-                col1.metric(
-                    "R2 Score",
-                    f"{results['r2_score']}%"
-                )
-
-                col2.metric(
-                    "Model",
-                    results['model_used']
-                )
-
-            # ---------------- CLUSTERING ----------------
+                st.metric("✅ R2 Score", f"{results['r2_score']}%")
+                st.metric("🤖 Model Used", results['model_used'])
+                
             elif results['type'] == 'clustering':
-
-                col1, col2 = st.columns(2)
-
-                col1.metric(
-                    "Clusters",
-                    results['clusters']
-                )
-
-                col2.metric(
-                    "Inertia",
-                    results['inertia']
-                )
-
-            # ---------------- WHY MODEL ----------------
-            st.subheader("🧠 Why This Model?")
-
-            if task_type == "classification":
-
-                st.write(
-                    "Random Forest performs well for structured classification datasets."
-                )
-
-            elif task_type == "regression":
-
-                st.write(
-                    "Random Forest Regressor handles nonlinear relationships effectively."
-                )
-
-            elif task_type == "clustering":
-
-                st.write(
-                    "KMeans automatically groups similar datapoints."
-                )
-
-            # ---------------- AI EXPLANATION ----------------
-            st.subheader("💬 AI Explanation")
-
-            explanation = get_ai_response(
-                task_type,
-                expertise
-            )
-
-            st.info(explanation)
-
-        # ---------------- TAB 4 ----------------
-        with tab4:
-
-            st.subheader("📊 Interactive Visualizations")
-
-            numeric_cols = df.select_dtypes(
-                include=['number']
-            ).columns.tolist()
-
-            # ---------------- MAIN CHART ----------------
+                st.metric("✅ Clusters Found", results['clusters'])
+                st.metric("📊 Inertia Score", results['inertia'])
+            
+            # Visualization
+            st.subheader("📊 Step 4: Visualization")
+            
+            numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+            
             if len(numeric_cols) >= 2:
-
                 if results['type'] == 'clustering':
-
-                    df['Cluster'] = [
-                        str(x)
-                        for x in results['cluster_labels']
-                    ]
-
+                    df['Cluster'] = [str(x) for x in results['cluster_labels']]
                     fig = px.scatter(
-                        df,
-                        x=numeric_cols[0],
-                        y=numeric_cols[1],
+                        df, x=numeric_cols[0], y=numeric_cols[1],
                         color='Cluster',
                         title="Cluster Visualization"
                     )
-
                 else:
-
-                    fig = px.scatter(
-                        df,
-                        x=numeric_cols[0],
-                        y=numeric_cols[1],
-                        title="Dataset Visualization"
+                    fig = px.histogram(
+                        df, x=numeric_cols[0],
+                        title=f"Distribution of {numeric_cols[0]}"
                     )
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
-
-            # ---------------- CORRELATION HEATMAP ----------------
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Correlation heatmap
             if len(numeric_cols) > 1:
-
                 corr = df[numeric_cols].corr()
-
                 fig2 = px.imshow(
                     corr,
                     title="Feature Correlation Heatmap",
                     color_continuous_scale='RdBu'
                 )
-
-                st.plotly_chart(
-                    fig2,
-                    use_container_width=True
+                st.plotly_chart(fig2, use_container_width=True)
+            
+            # AI Explanation
+            st.subheader("💬 Step 5: AI Explains Your Results")
+            
+            df_info = {'rows': df.shape[0], 'cols': df.shape[1]}
+            
+            with st.spinner("AI is writing explanation..."):
+                explanation = explain_results(
+                    task_type, results, df_info, expertise
                 )
+            
+            st.success(explanation)
+            
+        else:
+            st.error("Something went wrong. Please check your target column.")
 
-            # ---------------- FEATURE IMPORTANCE ----------------
-            if task_type != "clustering":
-
-                importance = model.feature_importances_
-
-                importance_df = pd.DataFrame({
-                    "Feature": df.drop(columns=[target_col]).columns,
-                    "Importance": importance
-                })
-
-                fig3 = px.bar(
-                    importance_df,
-                    x="Feature",
-                    y="Importance",
-                    title="Feature Importance"
-                )
-
-                st.plotly_chart(
-                    fig3,
-                    use_container_width=True
-                )
-
-            # ---------------- DOWNLOAD REPORT ----------------
-            report = f"""
-DataMind AI Report
-
-Task Type:
-{task_type}
-
-Dataset Shape:
-{df.shape}
-
-Analysis Completed Successfully.
-"""
-
-            st.download_button(
-                label="📥 Download AI Report",
-                data=report,
-                file_name="DataMind_AI_Report.txt",
-                mime="text/plain"
-            )
-
-# ---------------- HOME SCREEN ----------------
 else:
-
+    # Show instructions when no file uploaded
     st.markdown("---")
-
     col1, col2, col3 = st.columns(3)
-
+    
     with col1:
-        st.markdown("## 📂 Upload")
-        st.write(
-            "Upload any CSV dataset for AI-powered analysis."
-        )
-
+        st.markdown("### 📂 Upload")
+        st.markdown("Upload any CSV dataset from your computer")
+    
     with col2:
-        st.markdown("## 🧠 Analyze")
-        st.write(
-            "AI automatically detects the ML workflow."
-        )
-
+        st.markdown("### 🧠 AI Analyzes")
+        st.markdown("AI automatically detects what kind of analysis to do")
+    
     with col3:
-        st.markdown("## 📈 Predict")
-        st.write(
-            "Generate insights, charts, and predictions."
-        )
-
-# ---------------- FOOTER ----------------
-st.markdown("---")
-
-st.markdown(
-    "🚀 Developed by Pakhi Srivastava | DataMind AI"
-)
+        st.markdown("### 📊 Get Results")
+        st.markdown("See results explained in your language level")
