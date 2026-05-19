@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -28,9 +26,9 @@ def get_ai_response(task, expertise):
 
 Detected Task: {task}
 
-The AI system analyzed your dataset automatically and selected the appropriate machine learning workflow.
+The AI system automatically analyzed your dataset and selected the correct machine learning workflow.
 
-The model successfully learned patterns from your data and generated predictions.
+The model successfully identified patterns and generated insights from your data.
 """
 
     elif expertise == "Intermediate":
@@ -90,7 +88,7 @@ def run_model(df, task, target_col):
 
     df_encoded = df_encoded.fillna(df_encoded.mean())
 
-    # -------- CLUSTERING --------
+    # ---------------- CLUSTERING ----------------
     if task == "clustering":
 
         kmeans = KMeans(
@@ -107,7 +105,7 @@ def run_model(df, task, target_col):
 
         return results, df_encoded
 
-    # -------- TARGET --------
+    # ---------------- TARGET ----------------
     X = df_encoded.drop(columns=[target_col])
     y = df_encoded[target_col]
 
@@ -118,7 +116,7 @@ def run_model(df, task, target_col):
         random_state=42
     )
 
-    # -------- CLASSIFICATION --------
+    # ---------------- CLASSIFICATION ----------------
     if task == "classification":
 
         model = RandomForestClassifier(
@@ -137,7 +135,7 @@ def run_model(df, task, target_col):
 
         results['model_used'] = "Random Forest Classifier"
 
-    # -------- REGRESSION --------
+    # ---------------- REGRESSION ----------------
     elif task == "regression":
 
         model = RandomForestRegressor(
@@ -207,7 +205,6 @@ Tech Stack:
 5. AI Explains Results
 """)
 
-
 # ---------------- FILE UPLOAD ----------------
 uploaded_file = st.file_uploader(
     "📂 Upload CSV Dataset",
@@ -223,7 +220,7 @@ if uploaded_file:
         f"✅ File Uploaded Successfully: {uploaded_file.name}"
     )
 
-    # -------- METRICS --------
+    # ---------------- METRICS ----------------
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -238,7 +235,7 @@ if uploaded_file:
             int(df.isnull().sum().sum())
         )
 
-    # -------- PREVIEW --------
+    # ---------------- PREVIEW ----------------
     with st.expander("👀 Dataset Preview"):
         st.dataframe(df.head())
 
@@ -247,30 +244,53 @@ if uploaded_file:
 
     st.markdown("---")
 
-    # -------- AI TASK --------
+    # ---------------- TASK DETECTION ----------------
     st.subheader("🧠 Step 1: AI Analyzing Your Data")
 
     with st.spinner("Analyzing dataset..."):
 
-        task_type = detect_task_type(df)
+        detected_task = detect_task_type(df)
 
     st.success(
-        f"✅ Detected Task Type: {task_type.upper()}"
+        f"✅ Detected Task Type: {detected_task.upper()}"
     )
 
     target_col = None
 
-    if task_type != "clustering":
+    # ---------------- TASK + TARGET ----------------
+    col1, col2 = st.columns(2)
 
-        target_col = st.selectbox(
-            "🎯 Select Target Column",
-            df.columns.tolist(),
-            index=len(df.columns)-1
+    with col1:
+
+        task_type = st.selectbox(
+            "⚙️ Select Task Type",
+            ["classification", "regression", "clustering"],
+            index=[
+                "classification",
+                "regression",
+                "clustering"
+            ].index(detected_task)
         )
+
+    with col2:
+
+        if task_type != "clustering":
+
+            target_col = st.selectbox(
+                "🎯 Select Target Column",
+                df.columns.tolist(),
+                index=len(df.columns)-1
+            )
+
+        else:
+
+            st.info(
+                "No target column required for clustering"
+            )
 
     st.markdown("---")
 
-    # -------- RUN MODEL --------
+    # ---------------- RUN MODEL ----------------
     if st.button(
         "🚀 Run AI Model",
         use_container_width=True
@@ -284,13 +304,14 @@ if uploaded_file:
                 target_col
             )
 
-        # -------- RESULTS --------
+        # ---------------- RESULTS ----------------
         st.subheader("📈 Step 2: Results")
 
         st.success(
             "✅ Analysis Completed Successfully"
         )
 
+        # ---------------- CLASSIFICATION ----------------
         if results['type'] == 'classification':
 
             col1, col2 = st.columns(2)
@@ -303,10 +324,11 @@ if uploaded_file:
 
             with col2:
                 st.metric(
-                    "Model",
+                    "Model Used",
                     results['model_used']
                 )
 
+        # ---------------- REGRESSION ----------------
         elif results['type'] == 'regression':
 
             col1, col2 = st.columns(2)
@@ -319,10 +341,11 @@ if uploaded_file:
 
             with col2:
                 st.metric(
-                    "Model",
+                    "Model Used",
                     results['model_used']
                 )
 
+        # ---------------- CLUSTERING ----------------
         elif results['type'] == 'clustering':
 
             col1, col2 = st.columns(2)
@@ -335,11 +358,11 @@ if uploaded_file:
 
             with col2:
                 st.metric(
-                    "Inertia",
+                    "Inertia Score",
                     results['inertia']
                 )
 
-        # -------- VISUALIZATION --------
+        # ---------------- VISUALIZATION ----------------
         st.subheader("📊 Step 3: Visualization")
 
         numeric_cols = df.select_dtypes(
@@ -348,6 +371,7 @@ if uploaded_file:
 
         if len(numeric_cols) >= 2:
 
+            # -------- CLUSTERING VISUAL --------
             if results['type'] == 'clustering':
 
                 df['Cluster'] = [
@@ -363,6 +387,7 @@ if uploaded_file:
                     title="Cluster Visualization"
                 )
 
+            # -------- REGRESSION/CLASSIFICATION --------
             else:
 
                 fig = px.histogram(
@@ -376,7 +401,7 @@ if uploaded_file:
                 use_container_width=True
             )
 
-        # -------- HEATMAP --------
+        # ---------------- HEATMAP ----------------
         if len(numeric_cols) > 1:
 
             corr = df[numeric_cols].corr()
@@ -392,7 +417,7 @@ if uploaded_file:
                 use_container_width=True
             )
 
-        # -------- AI EXPLANATION --------
+        # ---------------- AI EXPLANATION ----------------
         st.subheader("💬 Step 4: AI Explanation")
 
         explanation = get_ai_response(
@@ -402,7 +427,7 @@ if uploaded_file:
 
         st.info(explanation)
 
-        # -------- DOWNLOAD REPORT --------
+        # ---------------- DOWNLOAD REPORT ----------------
         report = f"""
 DataMind AI Report
 
